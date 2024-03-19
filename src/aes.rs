@@ -8,7 +8,7 @@ const Nb: usize = 4; // block size
 const Nr: usize = 10; // number of rounds
 const Nk: usize = 4; // key length
 
-fn cipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
+pub fn cipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
     assert!(input.len() == 4 * Nb && word.len() == Nb * (Nr + 1));
     let mut state = vec![];
     for i in 0..4 {
@@ -19,31 +19,31 @@ fn cipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
         state.push(tmp);
     }
 
-    #[cfg(test)]
+    #[cfg(test_aes)]
     println!("INVERSE CIPHER (DECRYPT):");
-    #[cfg(test)]
+    #[cfg(test_aes)]
     println!("round[00].input\t{}", state_to_string(&state));
 
     add_round_key(&mut state, &key_at(word, 0));
-    #[cfg(test)]
+    #[cfg(test_aes)]
     println!("round[00].k_sch\t{}", state_to_string(&key_at(word, 0)));
     for round in 1..Nr {
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!("round[{:02}].start\t{}", round, state_to_string(&state));
 
         sub_bytes(&mut state);
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!("round[{:02}].s_box\t{}", round, state_to_string(&state));
 
         shift_rows(&mut state);
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!("round[{:02}].s_row\t{}", round, state_to_string(&state));
 
         mix_columns(&mut state);
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!("round[{:02}].m_col\t{}", round, state_to_string(&state));
 
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!(
             "round[{:02}].k_sch\t{}",
             round,
@@ -58,7 +58,7 @@ fn cipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
     rotate(&state).concat()
 }
 
-fn decipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
+pub fn decipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
     assert!(input.len() == 4 * Nb && word.len() == Nb * (Nr + 1));
     let mut state = vec![];
     for i in 0..4 {
@@ -69,17 +69,17 @@ fn decipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
         state.push(tmp);
     }
 
-    #[cfg(test)]
+    #[cfg(test_aes)]
     println!("CIPHER (ENCRYPT):");
-    #[cfg(test)]
+    #[cfg(test_aes)]
     println!("round[00].iinput\t{}", state_to_string(&state));
 
     add_round_key(&mut state, &key_at(word, Nr));
-    #[cfg(test)]
+    #[cfg(test_aes)]
     println!("round[00].ik_sch\t{}", state_to_string(&key_at(word, Nr)));
 
     for round in (1..Nr).rev() {
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!(
             "round[{:02}].istart\t{}",
             Nr - round,
@@ -87,7 +87,7 @@ fn decipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
         );
 
         inv_shift_rows(&mut state);
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!(
             "round[{:02}].is_row\t{}",
             Nr - round,
@@ -95,14 +95,14 @@ fn decipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
         );
 
         inv_sub_bytes(&mut state);
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!(
             "round[{:02}].is_box\t{}",
             Nr - round,
             state_to_string(&state)
         );
 
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!(
             "round[{:02}].ik_sch\t{}",
             Nr - round,
@@ -110,7 +110,7 @@ fn decipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
         );
 
         add_round_key(&mut state, &key_at(word, round));
-        #[cfg(test)]
+        #[cfg(test_aes)]
         println!(
             "round[{:02}].ik_add\t{}",
             Nr - round,
@@ -125,17 +125,6 @@ fn decipher(input: &[u8], word: &Vec<Vec<u8>>) -> Vec<u8> {
     add_round_key(&mut state, &key_at(word, 0));
 
     rotate(&state).concat()
-}
-
-pub fn decipher_in_ecb_mode(input: &Vec<u8>, key: &[u8]) -> String {
-    let mut res = vec![];
-    let word = &key_expansion(key);
-    for chunk in &input.iter().chunks(16) {
-        let input: Vec<u8> = chunk.map(|n| n.clone()).collect();
-        res.extend(decipher(&input, word));
-    }
-    res.iter()
-        .fold("".to_string(), |acc, n| acc + &(*n as char).to_string())
 }
 
 fn state_to_string(state: &Vec<Vec<u8>>) -> String {
@@ -263,7 +252,7 @@ fn mul(a: u8, b: u8) -> u8 {
     res
 }
 
-fn key_expansion(key: &[u8]) -> Vec<Vec<u8>> {
+pub fn key_expansion(key: &[u8]) -> Vec<Vec<u8>> {
     assert!(key.len() == 4 * Nk);
     let mut w = vec![vec![0; 4]; (Nb * (Nr + 1))];
     for i in 0..Nk {

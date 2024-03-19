@@ -1,4 +1,13 @@
 #![allow(dead_code)]
+pub fn xor_data(input1: &[u8], input2: &[u8]) -> Vec<u8> {
+    let mut res = vec![];
+    for (n1, n2) in input1.iter().zip(input2.iter()) {
+        res.push(n1 ^ n2);
+    }
+
+    res
+}
+
 fn xor(input1: &str, input2: &str) -> String {
     let mut res = "".to_string();
     for (c1, c2) in input1.chars().zip(input2.chars()) {

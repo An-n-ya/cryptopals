@@ -4,14 +4,15 @@ use std::{
     io::Read,
 };
 
-use aes::decipher_in_ecb_mode;
 use repeating_key_xor::repeating_key_xor_cipher;
 use single_byte_xor_cipher::single_byte_xor_cipher;
 
-use crate::base64::base64_to_u8;
+use crate::{base64::base64_to_u8, block_cipher_mode::decipher_in_ecb_mode};
 
 mod aes;
 mod base64;
+mod block_cipher_mode;
+mod pkcs;
 mod repeating_key_xor;
 mod single_byte_xor_cipher;
 mod xor;
