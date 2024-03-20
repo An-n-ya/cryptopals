@@ -38,7 +38,17 @@ pub fn decrypt_in_cbc_mode(input: &Vec<u8>, key: &[u8], initial_vector: &[u8]) -
     }
     pkcs7unpadding(&res, 16)
 }
-pub fn decipher_in_ecb_mode(input: &Vec<u8>, key: &[u8]) -> String {
+pub fn encrypt_in_ecb_mode(input: &Vec<u8>, key: &[u8]) -> Vec<u8> {
+    let mut res = vec![];
+    let word = &key_expansion(key);
+    for chunk in &input.iter().chunks(16) {
+        let input: Vec<u8> = chunk.map(|n| n.clone()).collect();
+        let input = pkcs7padding(&input, 16);
+        res.extend(cipher(&input, word));
+    }
+    res
+}
+pub fn decrypt_in_ecb_mode(input: &Vec<u8>, key: &[u8]) -> String {
     let mut res = vec![];
     let word = &key_expansion(key);
     for chunk in &input.iter().chunks(16) {

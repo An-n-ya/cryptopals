@@ -7,11 +7,12 @@ use std::{
 use repeating_key_xor::repeating_key_xor_cipher;
 use single_byte_xor_cipher::single_byte_xor_cipher;
 
-use crate::{base64::base64_to_u8, block_cipher_mode::decipher_in_ecb_mode};
+use crate::{base64::base64_to_u8, block_cipher_mode::decrypt_in_ecb_mode};
 
 mod aes;
 mod base64;
 mod block_cipher_mode;
+mod oracle;
 mod pkcs;
 mod repeating_key_xor;
 mod single_byte_xor_cipher;
@@ -77,6 +78,6 @@ fn aes_in_ecb_mode_decipher() {
     f.read_to_string(&mut buffer).unwrap();
     let key = b"YELLOW SUBMARINE";
     let buffer = base64_to_u8(&buffer);
-    let res = decipher_in_ecb_mode(&buffer, key);
+    let res = decrypt_in_ecb_mode(&buffer, key);
     println!("{res}");
 }
