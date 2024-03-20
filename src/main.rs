@@ -12,6 +12,7 @@ use crate::{base64::base64_to_u8, block_cipher_mode::decrypt_in_ecb_mode};
 mod aes;
 mod base64;
 mod block_cipher_mode;
+mod misc;
 mod oracle;
 mod pkcs;
 mod repeating_key_xor;

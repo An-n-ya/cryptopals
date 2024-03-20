@@ -48,13 +48,14 @@ pub fn encrypt_in_ecb_mode(input: &Vec<u8>, key: &[u8]) -> Vec<u8> {
     }
     res
 }
-pub fn decrypt_in_ecb_mode(input: &Vec<u8>, key: &[u8]) -> String {
+pub fn decrypt_in_ecb_mode(input: &[u8], key: &[u8]) -> String {
     let mut res = vec![];
     let word = &key_expansion(key);
     for chunk in &input.iter().chunks(16) {
         let input: Vec<u8> = chunk.map(|n| n.clone()).collect();
         res.extend(decipher(&input, word));
     }
+    res = pkcs7unpadding(&res, 16);
     res.iter()
         .fold("".to_string(), |acc, n| acc + &(*n as char).to_string())
 }
