@@ -9,21 +9,29 @@ use crate::{
     pkcs::pkcs7unpadding,
 };
 
-pub struct SuffixOracle<'a> {
+pub struct Oracle<'a> {
     suffix: &'a [u8],
+    prefix: Option<&'a [u8]>,
     key: Vec<u8>,
 }
 
-impl<'a> SuffixOracle<'a> {
-    pub fn new(suffix: &'a [u8]) -> Self {
+impl<'a> Oracle<'a> {
+    pub fn new(suffix: &'a [u8], prefix: Option<&'a [u8]>) -> Self {
         let mut key = vec![];
         for _ in 0..16 {
             key.push(rand::random::<u8>());
         }
-        Self { suffix, key }
+        Self {
+            suffix,
+            key,
+            prefix,
+        }
     }
     pub fn encrypt(&self, input: &[u8]) -> Vec<u8> {
         let mut res = vec![];
+        if let Some(prefix) = self.prefix {
+            res.extend(prefix);
+        }
         res.extend(input);
         res.extend(self.suffix);
 
@@ -75,7 +83,7 @@ pub fn count_repetition_in(n: usize, input: &[u8]) -> usize {
     l - set.len()
 }
 
-fn get_block_size(oracle: &SuffixOracle) -> usize {
+fn get_block_size(oracle: &Oracle) -> usize {
     let initial_len = oracle.encrypt(&[]).len();
     let mut data = vec![];
     // the max block size of AES is 128
@@ -90,28 +98,62 @@ fn get_block_size(oracle: &SuffixOracle) -> usize {
     unreachable!()
 }
 
-pub fn decrypt_byte_by_byte(oracle: &SuffixOracle) -> Vec<u8> {
+pub fn decrypt_byte_by_byte(oracle: &Oracle) -> Vec<u8> {
     let block_size = get_block_size(&oracle);
     #[cfg(debug_oracle)]
     println!("block size: {block_size}");
 
-    let encrypt_text = oracle.encrypt(&vec![0; block_size * 2]);
+    let encrypt_text = oracle.encrypt(&vec![0; block_size * 4]);
     if count_repetition_in(block_size, &encrypt_text) == 0 {
         panic!("It seemed like we are not working in ECB mode");
     }
     #[cfg(debug_oracle)]
     println!("It is in ECB mode");
 
-    let suffix_len = oracle.encrypt(&[]).len();
+    let mut prefix_len = 0usize;
+    let text = vec!['A' as u8; block_size * 5];
+    let cipher_text = oracle.encrypt(&text);
+    let mut chunks_set = HashSet::new();
+    let mut first_repeating_block = vec![];
+    for chunk in cipher_text.iter().chunks(block_size).into_iter() {
+        let chunk = chunk.collect_vec();
+        if chunks_set.contains(&chunk) {
+            first_repeating_block = chunk;
+            break;
+        }
+        chunks_set.insert(chunk);
+    }
+
+    'find_prefix_len: for i in 0..block_size {
+        let padding_text = vec!['A' as u8; block_size + i];
+        let cipher_text = oracle.encrypt(&padding_text);
+
+        for (index, chunk) in cipher_text
+            .iter()
+            .chunks(block_size)
+            .into_iter()
+            .enumerate()
+        {
+            let chunk = chunk.collect_vec();
+            if chunk == first_repeating_block && index > 0 {
+                prefix_len = (index - 1) * block_size + (block_size - i);
+                break 'find_prefix_len;
+            }
+        }
+    }
+
+    println!("{prefix_len:?}");
+
+    let suffix_len = oracle.encrypt(&[]).len() - prefix_len;
     let mut decrypt_text = vec![];
     for i in 0..suffix_len {
-        let repeating_size = (block_size - (decrypt_text.len() % block_size)) - 1;
+        let repeating_size = (block_size - ((decrypt_text.len() + prefix_len) % block_size)) - 1;
 
         let mut hack_arr = vec!['A' as u8; repeating_size];
 
         let initial_text = oracle.encrypt(&hack_arr);
 
-        let compare_size = repeating_size + decrypt_text.len() + 1;
+        let compare_size = repeating_size + decrypt_text.len() + prefix_len + 1;
         hack_arr.extend(&decrypt_text);
         for guess in 0..=255u8 {
             hack_arr.push(guess);
@@ -163,8 +205,23 @@ aGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBq
 dXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUg
 YnkK";
         let suffix = base64_to_u8(suffix);
-        println!("suffix {suffix:?}");
-        let oracle = SuffixOracle::new(&suffix);
+        let oracle = Oracle::new(&suffix, None);
+        let res = decrypt_byte_by_byte(&oracle);
+        assert_eq!(res, suffix);
+    }
+
+    #[test]
+    fn test_decrypt_byte_by_byte_with_random_prefix() {
+        let suffix = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkg
+aGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBq
+dXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUg
+YnkK";
+        let suffix = base64_to_u8(suffix);
+        let mut prefix = vec![];
+        for _ in 0..rand::random::<u8>() % 100 {
+            prefix.push(rand::random::<u8>());
+        }
+        let oracle = Oracle::new(&suffix, Some(&prefix));
         let res = decrypt_byte_by_byte(&oracle);
         assert_eq!(res, suffix);
     }
