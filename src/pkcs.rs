@@ -12,7 +12,7 @@ pub fn pkcs7padding(input: &[u8], k: u8) -> Vec<u8> {
     res
 }
 pub fn pkcs7unpadding(input: &[u8], k: u8) -> Vec<u8> {
-    println!("{input:?} len:{}", input.len());
+    // println!("{input:?} len:{}", input.len());
     let l = input.len();
     let padding_size = *input.last().unwrap();
     if !is_pkcs7_padding(input, k) {
@@ -24,6 +24,9 @@ pub fn pkcs7unpadding(input: &[u8], k: u8) -> Vec<u8> {
 pub fn is_pkcs7_padding(input: &[u8], k: u8) -> bool {
     let l = input.len();
     let padding_size = *input.last().unwrap();
+    if l < padding_size as usize {
+        return false;
+    }
     input[l - padding_size as usize..l]
         .iter()
         .all(|n| *n == padding_size)

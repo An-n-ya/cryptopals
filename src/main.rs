@@ -16,6 +16,7 @@ mod misc;
 mod oracle;
 mod pkcs;
 mod repeating_key_xor;
+mod set_17_cbc_padding_oracle;
 mod single_byte_xor_cipher;
 mod xor;
 

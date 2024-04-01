@@ -1,6 +1,14 @@
 #![allow(unused)]
 use crate::block_cipher_mode::{decrypt_in_ecb_mode, encrypt_in_ecb_mode};
 
+pub fn rand_vec(len: usize) -> Vec<u8> {
+    let mut res = vec![];
+    for i in 0..len {
+        res.push(rand::random::<u8>());
+    }
+    res
+}
+
 pub struct Profile {
     email: String,
     uid: usize,
@@ -44,7 +52,7 @@ impl ProfileCrypt {
         Profile { email, uid, role }
     }
     pub fn encrypt_profile(&self, profile: &Profile) -> Vec<u8> {
-        let input = profile.encode().chars().map(|c| c as u8).collect();
+        let input: Vec<u8> = profile.encode().chars().map(|c| c as u8).collect();
         encrypt_in_ecb_mode(&input, &self.key)
     }
 }

@@ -8,7 +8,7 @@ use crate::{
     xor::xor_data,
 };
 
-pub fn encrypt_in_cbc_mode(input: &Vec<u8>, key: &[u8], initial_vector: &[u8]) -> Vec<u8> {
+pub fn encrypt_in_cbc_mode(input: &[u8], key: &[u8], initial_vector: &[u8]) -> Vec<u8> {
     assert!(initial_vector.len() == 16);
     let mut res = vec![];
     let word = &key_expansion(key);
@@ -24,7 +24,11 @@ pub fn encrypt_in_cbc_mode(input: &Vec<u8>, key: &[u8], initial_vector: &[u8]) -
     res
 }
 
-pub fn decrypt_in_cbc_mode(input: &Vec<u8>, key: &[u8], initial_vector: &[u8]) -> Vec<u8> {
+pub fn decrypt_in_cbc_mode_without_unpadding(
+    input: &[u8],
+    key: &[u8],
+    initial_vector: &[u8],
+) -> Vec<u8> {
     assert!(initial_vector.len() == 16);
     let mut res = vec![];
     let word = &key_expansion(key);
@@ -36,9 +40,13 @@ pub fn decrypt_in_cbc_mode(input: &Vec<u8>, key: &[u8], initial_vector: &[u8]) -
         last_input = input;
         res.extend(plain_text.iter());
     }
+    res
+}
+pub fn decrypt_in_cbc_mode(input: &[u8], key: &[u8], initial_vector: &[u8]) -> Vec<u8> {
+    let res = decrypt_in_cbc_mode_without_unpadding(input, key, initial_vector);
     pkcs7unpadding(&res, 16)
 }
-pub fn encrypt_in_ecb_mode(input: &Vec<u8>, key: &[u8]) -> Vec<u8> {
+pub fn encrypt_in_ecb_mode(input: &[u8], key: &[u8]) -> Vec<u8> {
     let mut res = vec![];
     let word = &key_expansion(key);
     for chunk in &input.iter().chunks(16) {
