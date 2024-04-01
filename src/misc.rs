@@ -40,6 +40,10 @@ impl ProfileCrypt {
     }
     pub fn decrypt_profile(&self, input: &[u8]) -> Profile {
         let data = decrypt_in_ecb_mode(input, &self.key);
+
+        let data = data
+            .iter()
+            .fold("".to_string(), |acc, n| acc + &(*n as char).to_string());
         println!("{data}");
         let val: Vec<&str> = data.split("&").collect();
         let email = val[0].strip_prefix("email=").unwrap().to_string();

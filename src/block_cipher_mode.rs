@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+use std::borrow::Borrow;
+
 use itertools::Itertools;
 
 use crate::{
@@ -56,16 +58,38 @@ pub fn encrypt_in_ecb_mode(input: &[u8], key: &[u8]) -> Vec<u8> {
     }
     res
 }
-pub fn decrypt_in_ecb_mode(input: &[u8], key: &[u8]) -> String {
+pub fn decrypt_in_ecb_mode(input: &[u8], key: &[u8]) -> Vec<u8> {
     let mut res = vec![];
     let word = &key_expansion(key);
     for chunk in &input.iter().chunks(16) {
         let input: Vec<u8> = chunk.map(|n| n.clone()).collect();
         res.extend(decipher(&input, word));
     }
-    res = pkcs7unpadding(&res, 16);
-    res.iter()
-        .fold("".to_string(), |acc, n| acc + &(*n as char).to_string())
+    pkcs7unpadding(&res, 16)
+}
+
+pub fn encrypt_in_ctr_mode(input: &[u8], key: &[u8], nonce: u64) -> Vec<u8> {
+    let mut counter = 0u64;
+    let mut result = vec![];
+    for data in input.iter().chunks(16).borrow() {
+        let mut nonce_ctr = vec![];
+        nonce.to_le_bytes().iter().for_each(|n| nonce_ctr.push(*n));
+        counter
+            .to_le_bytes()
+            .iter()
+            .for_each(|n| nonce_ctr.push(*n));
+        let res = encrypt_in_ecb_mode(&nonce_ctr, key);
+        let data = data.map(|n| *n).collect_vec();
+        let res = xor_data(&data, &res);
+
+        res.iter().for_each(|n| result.push(*n));
+
+        counter += 1;
+    }
+    result
+}
+pub fn decrypt_in_ctr_mode(input: &[u8], key: &[u8], nonce: u64) -> Vec<u8> {
+    encrypt_in_ctr_mode(input, key, nonce)
 }
 
 #[cfg(test)]
@@ -80,25 +104,27 @@ mod tests {
     fn test_cbc_mode() {
         let iv = [0; 16];
         let key = b"YELLOW SUBMARINE";
-        let mut file = File::open("10.txt").unwrap();
-        let mut buffer = "".to_string();
-        file.read_to_string(&mut buffer);
-        let buffer = base64_to_u8(&buffer);
-        let res = decrypt_in_cbc_mode(&buffer, key, &iv);
-        let res: String = res.iter().map(|n| *n as char).collect();
-        println!("{res}");
-        // panic!();
-    }
-
-    #[test]
-    fn test_basic() {
-        let iv = [0; 16];
-        let key = b"YELLOW SUBMARINE";
         let input = b"Trying to decrypt something to see if its works";
         let res = encrypt_in_cbc_mode(&input.to_vec(), key, &iv);
         let res = decrypt_in_cbc_mode(&res, key, &iv);
         assert_eq!(res, input);
         let res: String = res.iter().map(|n| *n as char).collect();
         println!("{res}");
+    }
+
+    #[test]
+    fn test_ctr_mode() {
+        let key = b"YELLOW SUBMARINE";
+        let input = base64_to_u8(
+            "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ==",
+        );
+        let res = encrypt_in_ctr_mode(&input, key, 0);
+        assert_eq!(res, b"Yo, VIP Let's kick it Ice, Ice, baby Ice, Ice, baby ");
+
+        let key = b"key with 16 byte";
+        let input = b"Trying to decrypt something to see if its works";
+        let encrypt_data = encrypt_in_ctr_mode(input, key, u64::MAX);
+        let decrypt_data = decrypt_in_ctr_mode(&encrypt_data, key, u64::MAX);
+        assert_eq!(decrypt_data, input);
     }
 }

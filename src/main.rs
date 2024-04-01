@@ -81,5 +81,8 @@ fn aes_in_ecb_mode_decipher() {
     let key = b"YELLOW SUBMARINE";
     let buffer = base64_to_u8(&buffer);
     let res = decrypt_in_ecb_mode(&buffer, key);
+    let res = res
+        .iter()
+        .fold("".to_string(), |acc, n| acc + &(*n as char).to_string());
     println!("{res}");
 }
