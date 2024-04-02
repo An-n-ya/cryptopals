@@ -1,4 +1,6 @@
 #![allow(unused)]
+use std::{collections::HashMap, fs::File, io::Read};
+
 use crate::block_cipher_mode::{decrypt_in_ecb_mode, encrypt_in_ecb_mode};
 
 pub fn rand_vec(len: usize) -> Vec<u8> {
@@ -7,6 +9,22 @@ pub fn rand_vec(len: usize) -> Vec<u8> {
         res.push(rand::random::<u8>());
     }
     res
+}
+
+pub fn get_eng_histogram() -> HashMap<u8, f64> {
+    let mut f = File::open("hemingwaye-oldmanandthesea.txt").unwrap();
+    let mut buffer = "".to_string();
+    f.read_to_string(&mut buffer).unwrap();
+    let buffer_len = buffer.len() as f64;
+    let mut histogram = HashMap::new();
+    for c in buffer.chars() {
+        let c = c as u8;
+        histogram.insert(c, histogram.get(&c).unwrap_or(&0f64) + 1f64);
+    }
+    for i in 0..=255 {
+        histogram.insert(i, histogram.get(&i).unwrap_or(&0f64) / buffer_len);
+    }
+    histogram
 }
 
 pub struct Profile {

@@ -4,6 +4,7 @@ use std::{
     io::Read,
 };
 
+use misc::get_eng_histogram;
 use repeating_key_xor::repeating_key_xor_cipher;
 use single_byte_xor_cipher::single_byte_xor_cipher;
 
@@ -17,6 +18,7 @@ mod oracle;
 mod pkcs;
 mod repeating_key_xor;
 mod set_17_cbc_padding_oracle;
+mod set_19_20_ctr_crack;
 mod single_byte_xor_cipher;
 mod xor;
 
@@ -27,19 +29,7 @@ fn main() {
     #[allow(unused)]
     let word_list: HashSet<&str> = word_list.lines().collect();
 
-    let mut f = File::open("hemingwaye-oldmanandthesea.txt").unwrap();
-    let mut buffer = "".to_string();
-    f.read_to_string(&mut buffer).unwrap();
-    let buffer_len = buffer.len() as f64;
-    let mut histogram = HashMap::new();
-    for c in buffer.chars() {
-        let c = c as u8;
-        histogram.insert(c, histogram.get(&c).unwrap_or(&0f64) + 1f64);
-    }
-    for i in 0..=255 {
-        histogram.insert(i, histogram.get(&i).unwrap_or(&0f64) / buffer_len);
-    }
-
+    let histogram = get_eng_histogram();
     // repeating_xor_cipher(histogram);
     aes_in_ecb_mode_decipher();
 }
