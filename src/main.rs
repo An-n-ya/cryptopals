@@ -14,14 +14,16 @@ mod aes;
 mod base64;
 mod block_cipher_mode;
 mod misc;
+mod mt19937;
 mod oracle;
 mod pkcs;
 mod repeating_key_xor;
 mod set_17_cbc_padding_oracle;
 mod set_19_20_ctr_crack;
+mod set_22_mt19937_seed_crack;
+mod set_23_mt19937_crack;
 mod single_byte_xor_cipher;
 mod xor;
-mod mt19937;
 
 fn main() {
     let mut f = File::open("/home/annya/Documents/20k_words.txt").unwrap();
