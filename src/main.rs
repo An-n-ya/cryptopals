@@ -22,6 +22,7 @@ mod set_17_cbc_padding_oracle;
 mod set_19_20_ctr_crack;
 mod set_22_mt19937_seed_crack;
 mod set_23_mt19937_crack;
+mod sha1;
 mod single_byte_xor_cipher;
 mod xor;
 

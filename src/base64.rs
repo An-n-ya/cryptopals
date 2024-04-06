@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+
+use std::fmt::format;
 enum State {
     Need8,
     Need6,
@@ -33,6 +35,11 @@ pub fn hex_to_base64(hex: &str) -> String {
         }
     }
     res
+}
+
+pub fn u8_to_base64(input: &[u8]) -> String {
+    let s: String = input.iter().map(|n| format!("{:02x}", n)).collect();
+    hex_to_base64(&s)
 }
 
 pub fn base64_to_u8(input: &str) -> Vec<u8> {
@@ -133,6 +140,14 @@ mod tests {
         let input = "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d";
         let expect = "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t";
         let res = hex_to_base64(input);
+        assert_eq!(res, expect);
+    }
+
+    #[test]
+    fn test_u8_to_base64() {
+        let input = [0xf3, 0xff];
+        let expect = hex_to_base64("f3ff");
+        let res = u8_to_base64(&input);
         assert_eq!(res, expect);
     }
 }
