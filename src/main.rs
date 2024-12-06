@@ -25,6 +25,7 @@ mod set_23_mt19937_crack;
 mod sha1;
 mod single_byte_xor_cipher;
 mod xor;
+mod md4;
 
 fn main() {
     let mut f = File::open("/home/annya/Documents/20k_words.txt").unwrap();
