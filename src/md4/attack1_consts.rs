@@ -1,5 +1,8 @@
-use super::attack1::{CmdType, Round1Cmd};
+use super::attack1::{CmdType, Round1Cmd, StateType};
 
+pub const SHIFT: [u32; 4] = [3, 7, 11, 9];
+pub const ORDER: [StateType; 4] = [StateType::A, StateType::D, StateType::C, StateType::B];
+pub const ORDER_REV: [StateType; 4] = [StateType::A, StateType::B, StateType::C, StateType::D];
 
 pub const ROUND1Cmd: [&[Round1Cmd]; 16] = {
     use CmdType::*;
