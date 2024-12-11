@@ -8,10 +8,16 @@ pub const ORDER_REV: [StateType; 4] = [StateType::A, StateType::B, StateType::C,
 pub const ROUND1_CMD: [&[Cmd]; 16] = {
     use CmdType::*;
     [
-        &[Cmd { typ: Equal(None), bit: 6 }],
+        &[Cmd {
+            typ: Equal(None),
+            bit: 6,
+        }],
         &[
             Cmd { typ: Unset, bit: 6 },
-            Cmd { typ: Equal(None), bit: 7 },
+            Cmd {
+                typ: Equal(None),
+                bit: 7,
+            },
             Cmd {
                 typ: Equal(None),
                 bit: 10,
@@ -316,16 +322,65 @@ pub const ROUND1_CMD: [&[Cmd]; 16] = {
         ],
     ]
 };
-pub const ROUND2_CMD: [&[Cmd]; 1] = {
+pub const ROUND2_CMD: [&[Cmd]; 2] = {
     use CmdType::*;
-    [&[
-        Cmd {
-            typ: Equal(Some(StateType::C)),
-            bit: 18,
-        },
-        Cmd { typ: Set, bit: 25 },
-        Cmd { typ: Unset, bit: 26 },
-        Cmd { typ: Set, bit: 28 },
-        Cmd { typ: Set, bit: 31 },
-    ]]
+    [
+        &[
+            Cmd {
+                typ: Equal(Some(StateType::C)),
+                bit: 18,
+            },
+            Cmd { typ: Set, bit: 25 },
+            Cmd {
+                typ: Unset,
+                bit: 26,
+            },
+            Cmd { typ: Set, bit: 28 },
+            Cmd { typ: Set, bit: 31 },
+        ],
+        &[
+            Cmd {
+                typ: Equal(Some(StateType::A)),
+                bit: 18,
+            },
+            Cmd {
+                typ: Equal(Some(StateType::B)),
+                bit: 25,
+            },
+            Cmd {
+                typ: Equal(Some(StateType::B)),
+                bit: 26,
+            },
+            Cmd {
+                typ: Equal(Some(StateType::B)),
+                bit: 28,
+            },
+            Cmd {
+                typ: Equal(Some(StateType::B)),
+                bit: 31,
+            },
+        ],
+        // &[
+        //     Cmd {
+        //         typ: Equal(Some(StateType::D)),
+        //         bit: 25,
+        //     },
+        //     Cmd {
+        //         typ: Equal(Some(StateType::D)),
+        //         bit: 26,
+        //     },
+        //     Cmd {
+        //         typ: Equal(Some(StateType::D)),
+        //         bit: 28,
+        //     },
+        //     Cmd {
+        //         typ: Equal(Some(StateType::D)),
+        //         bit: 29,
+        //     },
+        //     Cmd {
+        //         typ: Equal(Some(StateType::D)),
+        //         bit: 31,
+        //     },
+        // ],
+    ]
 };

@@ -421,7 +421,7 @@ fn attack_round2(
                 let state_id = v_id.unwrap() as usize;
                 prev_state = format!(
                     "{:?}{}",
-                    ORDER[state_id],
+                    ORDER_REV[state_id],
                     round - if idx == StateType::A { 1 } else { 0 }
                 );
                 correct_bit_equal(v, vals[state_id], bit)
@@ -556,9 +556,9 @@ fn get_states_from(mut state: State, mut n: usize, msg: &[Wu32; 16]) -> Vec<Stat
 
 fn attack() -> [Wu32; 16] {
     let mut m = [W(u32::MAX); 16];
-    // for v in m.iter_mut() {
-    //     *v = W(rand::random());
-    // }A0: 67452301
+    for v in m.iter_mut() {
+        *v = W(rand::random());
+    }
     let mut state = [State::default(); 4];
     for (i, iv) in S0.iter().enumerate() {
         state[i] = State {
@@ -588,26 +588,34 @@ fn attack() -> [Wu32; 16] {
         State {
             typ: StateType::A,
             num: 1,
-            val: W(0)
+            val: W(0),
         },
         State {
             typ: StateType::A,
             num: 2,
-            val: W(0)
+            val: W(0),
         },
         State {
             typ: StateType::A,
             num: 3,
-            val: W(0)
+            val: W(0),
         },
         State {
             typ: StateType::A,
             num: 4,
-            val: W(0)
+            val: W(0),
         },
     ];
     for (i, cmds) in ROUND2_CMD.iter().enumerate() {
-        attack_round2(&mut state, ORDER[i % 4], i / 4 + msg_idx_arr[i % 4], &mut m, SHIFT2[i % 4], cmds, affecting_states[i]);
+        attack_round2(
+            &mut state,
+            ORDER[i % 4],
+            i / 4 + msg_idx_arr[i % 4],
+            &mut m,
+            SHIFT2[i % 4],
+            cmds,
+            affecting_states[i],
+        );
     }
     m
 }
