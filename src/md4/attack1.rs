@@ -4,8 +4,7 @@ use std::num::Wrapping as W;
 use crate::md4::{attack1_consts::ORDER_REV, g, K1};
 
 use super::{
-    attack1_consts::{ORDER, ROUND1_CMD, ROUND2_CMD, SHIFT1, SHIFT2},
-    f, inv_op, op, Wu32, S0,
+    attack1_consts::{ORDER, ROUND1_CMD, ROUND2_CMD, SHIFT1, SHIFT2}, f, h, inv_op, op, Wu32, K2, S0
 };
 
 // TODO: refactor
@@ -554,7 +553,64 @@ fn get_states_from(mut state: State, mut n: usize, msg: &[Wu32; 16]) -> Vec<Stat
     res
 }
 
-fn attack() -> [Wu32; 16] {
+
+fn md4(msg: &[Wu32; 16]) -> String {
+    // TODO: need padding zero
+    let [a, b , c, d] = S0;
+    for &i in &[0, 4, 8, 12] {
+        op(f, a, b, c, d, msg[i], 3);
+        op(f, d, a, b, c, msg[i + 1], 7);
+        op(f, c, d, a, b, msg[i + 2], 11);
+        op(f, b, c, d, a, msg[i + 3], 19);
+    }
+    for &i in &[0, 1, 2, 3] {
+        op(g, a, b, c, d, msg[i] + K1, 3);
+        op(g, d, a, b, c, msg[i + 4] + K1, 5);
+        op(g, c, d, a, b, msg[i + 8] + K1, 9);
+        op(g, b, c, d, a, msg[i + 12] + K1, 13);
+    }
+    for &i in &[0, 2, 1, 3] {
+        op(h, a, b, c, d, msg[i] + K2, 3);
+        op(h, d, a, b, c, msg[i + 8] + K2, 9);
+        op(h, c, d, a, b, msg[i + 4] + K2, 11);
+        op(h, b, c, d, a, msg[i + 12] + K2, 15);
+    }
+    format!("{:x}{:x}{:x}{:x}", a, b, c, d)
+}
+
+fn create_colliding_msg(msg: [Wu32; 16]) -> ([Wu32; 16], [Wu32; 16]) {
+    let mut n_msg = msg.clone();
+    n_msg[1] = W(msg[1].0) + W(1 << 31);
+    n_msg[2] = W(msg[2].0) + W((1 << 31) - (1 << 28));
+    n_msg[12] = W(msg[12].0 - (1 << 16));
+    (msg, n_msg)
+}
+
+fn format_msg(msg: &[Wu32; 16]) -> String {
+    let mut res = "".to_string();
+    for m in msg {
+        res.push_str(&format!("{:x}", m));
+    }
+    res
+}
+
+fn attack() {
+    loop {
+        let msg = generate_msg();
+        // maybe this msg is not fully satisfy the conditions a1~d4, but the
+        // conditions in Wang's paper is not necessary, it is still good to
+        // have a try
+        let (msg, n_msg) = create_colliding_msg(msg);
+        if md4(&msg) == md4(&n_msg) {
+            let md4_result = md4(&msg);
+            let (msg, n_msg) = (format_msg(&msg), format_msg(&n_msg));
+            println!("we found it!\nM1: {}\nM2: {}\nmd4: {}", msg, n_msg, md4_result);
+            break;
+        }
+    }
+}
+
+fn generate_msg() -> [Wu32; 16] {
     let mut m = [W(u32::MAX); 16];
     for v in m.iter_mut() {
         *v = W(rand::random());
@@ -631,8 +687,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_md4_attack() {
+        attack();
+        panic!()
+    }
+
+    #[test]
     fn test_round1() {
-        let msg = attack();
+        let msg = generate_msg();
         check(&msg);
     }
 
