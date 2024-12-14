@@ -1,10 +1,13 @@
 #![allow(unused)]
 use std::num::Wrapping as W;
 
+use itertools::Itertools;
+
 use crate::md4::{attack1_consts::ORDER_REV, g, K1};
 
 use super::{
-    attack1_consts::{ORDER, ROUND1_CMD, ROUND2_CMD, SHIFT1, SHIFT2}, f, h, inv_op, op, Wu32, K2, S0
+    attack1_consts::{ORDER, ROUND1_CMD, ROUND2_CMD, SHIFT1, SHIFT2},
+    f, h, inv_op, op, Wu32, K2, S0,
 };
 
 // TODO: refactor
@@ -553,29 +556,135 @@ fn get_states_from(mut state: State, mut n: usize, msg: &[Wu32; 16]) -> Vec<Stat
     res
 }
 
+const PADDING: [u8; 64] = [
+    0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0,
+];
 
-fn md4(msg: &[Wu32; 16]) -> String {
-    // TODO: need padding zero
-    let [a, b , c, d] = S0;
-    for &i in &[0, 4, 8, 12] {
-        op(f, a, b, c, d, msg[i], 3);
-        op(f, d, a, b, c, msg[i + 1], 7);
-        op(f, c, d, a, b, msg[i + 2], 11);
-        op(f, b, c, d, a, msg[i + 3], 19);
+fn md4(msg: &[u8]) -> String {
+    let mut blocks = Vec::new();
+    fn print_blocks(blocks: &Vec<Vec<Wu32>>) {
+        for block in blocks {
+            assert!(block.len() == 16);
+            for n in block {
+                let bytes = n.0.to_le_bytes();
+                println!(
+                    "{:0>2x}{:0>2x}{:0>2x}{:0>2x}",
+                    bytes[0], bytes[1], bytes[2], bytes[3]
+                );
+            }
+        }
     }
-    for &i in &[0, 1, 2, 3] {
-        op(g, a, b, c, d, msg[i] + K1, 3);
-        op(g, d, a, b, c, msg[i + 4] + K1, 5);
-        op(g, c, d, a, b, msg[i + 8] + K1, 9);
-        op(g, b, c, d, a, msg[i + 12] + K1, 13);
+    fn add_u8_arr(arr: &[u8], blocks: &mut Vec<Vec<Wu32>>) -> usize {
+        let mut block = [W(0); 16];
+        if arr.len() < 64 {
+            return 0;
+        }
+        let mut cur = 0;
+        for i in (0..arr.len()).step_by(4) {
+            if i + 4 >= arr.len() {
+                break;
+            }
+            block[cur] = W(u32::from_le_bytes([
+                arr[i + 0],
+                arr[i + 1],
+                arr[i + 2],
+                arr[i + 3],
+            ]));
+            cur += 1;
+            if cur == 16 {
+                blocks.push(block.to_vec());
+            }
+        }
+        cur
     }
-    for &i in &[0, 2, 1, 3] {
-        op(h, a, b, c, d, msg[i] + K2, 3);
-        op(h, d, a, b, c, msg[i + 8] + K2, 9);
-        op(h, c, d, a, b, msg[i + 4] + K2, 11);
-        op(h, b, c, d, a, msg[i + 12] + K2, 15);
+    let cnt = add_u8_arr(msg, &mut blocks);
+    let msg_len = msg.len();
+    let remaining = msg_len - cnt * 4;
+    // padding to 448
+    let mut padding_block = msg[msg_len - remaining..msg_len]
+        .iter()
+        .map(|v| *v)
+        .collect::<Vec<_>>();
+    let padding_length = if padding_block.len() == 56 {
+        64
+    } else {
+        56 - padding_block.len()
+    };
+    padding_block = padding_block
+        .iter()
+        .chain(PADDING[0..padding_length].iter())
+        .map(|v| *v)
+        .collect();
+    // adding length
+    let length = ((msg.len() * 8) as u64).to_le_bytes();
+    padding_block = padding_block
+        .iter()
+        .chain(length.iter())
+        .map(|v| *v)
+        .collect();
+    add_u8_arr(&padding_block, &mut blocks);
+    assert!(padding_block.len() % 64 == 0);
+    blocks = padding_block
+        .chunks(64)
+        .map(|chunk| {
+            chunk
+                .chunks(4)
+                .map(|sub_chunk| {
+                    W(u32::from_le_bytes([
+                        sub_chunk[0],
+                        sub_chunk[1],
+                        sub_chunk[2],
+                        sub_chunk[3],
+                    ]))
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    print_blocks(&blocks);
+
+    let mut states = S0;
+    for msg in blocks {
+        let [mut a, mut b, mut c, mut d] = states;
+        println!("{:x}\n{:x}\n{:x}\n{:x}\n", a, b, c, d);
+        for &i in &[0, 4, 8, 12] {
+            a = op(f, a, b, c, d, msg[i], 3);
+            d = op(f, d, a, b, c, msg[i + 1], 7);
+            c = op(f, c, d, a, b, msg[i + 2], 11);
+            b = op(f, b, c, d, a, msg[i + 3], 19);
+        }
+        println!("{:x}\n{:x}\n{:x}\n{:x}\n", a, b, c, d);
+        for &i in &[0, 1, 2, 3] {
+            a = op(g, a, b, c, d, msg[i] + K1, 3);
+            d = op(g, d, a, b, c, msg[i + 4] + K1, 5);
+            c = op(g, c, d, a, b, msg[i + 8] + K1, 9);
+            b = op(g, b, c, d, a, msg[i + 12] + K1, 13);
+        }
+        println!("{:x}\n{:x}\n{:x}\n{:x}\n", a, b, c, d);
+        for &i in &[0, 2, 1, 3] {
+            a = op(h, a, b, c, d, msg[i] + K2, 3);
+            d = op(h, d, a, b, c, msg[i + 8] + K2, 9);
+            c = op(h, c, d, a, b, msg[i + 4] + K2, 11);
+            b = op(h, b, c, d, a, msg[i + 12] + K2, 15);
+        }
+        println!("{:x}\n{:x}\n{:x}\n{:x}\n", a, b, c, d);
+        states[0] += a;
+        states[1] += b;
+        states[2] += c;
+        states[3] += d;
+        println!(
+            "{:x}{:x}{:x}{:x}",
+            states[0], states[1], states[2], states[3]
+        )
     }
-    format!("{:x}{:x}{:x}{:x}", a, b, c, d)
+    states
+        .iter()
+        .map(|v| v.0.to_le_bytes())
+        .collect::<Vec<_>>()
+        .concat()
+        .iter()
+        .fold(String::new(), |acc, v| format!("{acc}{v:x}"))
 }
 
 fn create_colliding_msg(msg: [Wu32; 16]) -> ([Wu32; 16], [Wu32; 16]) {
@@ -595,16 +704,22 @@ fn format_msg(msg: &[Wu32; 16]) -> String {
 }
 
 fn attack() {
+    fn convert_msg(msg: [Wu32; 16]) -> Vec<u8> {
+        msg.iter()
+            .map(|v| v.0.to_le_bytes())
+            .collect::<Vec<_>>()
+            .concat()
+    }
     loop {
         let msg = generate_msg();
         // maybe this msg is not fully satisfy the conditions a1~d4, but the
         // conditions in Wang's paper is not necessary, it is still good to
         // have a try
         let (msg, n_msg) = create_colliding_msg(msg);
-        if md4(&msg) == md4(&n_msg) {
-            let md4_result = md4(&msg);
+        let (md4_1, md4_2) = (md4(&convert_msg(msg)), md4(&convert_msg(n_msg)));
+        if md4_1 == md4_2 {
             let (msg, n_msg) = (format_msg(&msg), format_msg(&n_msg));
-            println!("we found it!\nM1: {}\nM2: {}\nmd4: {}", msg, n_msg, md4_result);
+            println!("we found it!\nM1: {}\nM2: {}\nmd4: {}", msg, n_msg, md4_1);
             break;
         }
     }
@@ -685,6 +800,23 @@ fn print_state(state: &[State; 4]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn test_md4_impl() {
+        let messages = [
+            "".as_bytes(),
+            "The quick brown fox jumps over the lazy dog".as_bytes(),
+            "BEES".as_bytes(),
+        ];
+        let known_hashes = [
+            "31d6cfe0d16ae931b73c59d7e0c089c0",
+            "1bee69a46ba811185c194762abaeae90",
+            "501af1ef4b68495b5b7e37b15b4cda68",
+        ];
+        for (msg, expect) in messages.iter().zip(known_hashes.iter()) {
+            let got = md4(msg);
+            assert_eq!(&got, expect);
+        }
+    }
 
     #[test]
     fn test_md4_attack() {
