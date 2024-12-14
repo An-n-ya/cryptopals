@@ -664,9 +664,9 @@ fn md4(msg: &[u8]) -> String {
 
 fn create_colliding_msg(msg: [Wu32; 16]) -> ([Wu32; 16], [Wu32; 16]) {
     let mut n_msg = msg.clone();
-    n_msg[1] = W(msg[1].0) + W(1 << 31);
-    n_msg[2] = W(msg[2].0) + W((1 << 31) - (1 << 28));
-    n_msg[12] = W(msg[12].0 - (1 << 16));
+    n_msg[1] = msg[1] + W(1 << 31);
+    n_msg[2] = msg[2] + W((1 << 31) - (1 << 28));
+    n_msg[12] = msg[12] - W(1 << 16);
     (msg, n_msg)
 }
 
@@ -693,6 +693,7 @@ fn attack() {
         let (md4_1, md4_2) = (md4(&convert_msg(msg)), md4(&convert_msg(n_msg)));
         if md4_1 == md4_2 {
             let (msg, n_msg) = (format_msg(msg), format_msg(n_msg));
+            println!("we found it!\nM1: {}\nM2: {}\nmd4: {}", msg, n_msg, md4_1);
             break;
         }
     }
@@ -795,7 +796,7 @@ mod tests {
             "501af1ef4b68495b5b7e37b15b4cda68",
             "f322852f43b3dd6c68b01de97bc547fd",
             "176078c7efaebfdacd1f4112467874e1",
-            "a25f98cb8736de9f7c9641995982a44f"
+            "a25f98cb8736de9f7c9641995982a44f",
         ];
         for (msg, expect) in messages.iter().zip(known_hashes.iter()) {
             let got = md4(msg);
