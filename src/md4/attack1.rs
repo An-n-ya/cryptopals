@@ -221,10 +221,9 @@ fn check(msg: &[Wu32; 16]) {
             ORDER_REV[(idx_num + 1) % 4],
             round - if idx == StateType::A { 1 } else { 0 }
         );
-        // println!("checker v: {}", format_wu32(v));
         let cmds = ROUND1_CMD[i].iter();
         for cmd in cmds {
-            cmd.debug(&cur_state, &prev_state, 1);
+            // cmd.debug(&cur_state, &prev_state, 1);
             match cmd.typ {
                 CmdType::Equal(_) => {
                     assert!(
@@ -288,7 +287,7 @@ fn check(msg: &[Wu32; 16]) {
                 ORDER_REV[prev_ind],
                 round - if idx == StateType::A { 1 } else { 0 }
             );
-            cmd.debug(&cur_state, &prev_state, 2);
+            // cmd.debug(&cur_state, &prev_state, 2);
             match cmd.typ {
                 CmdType::Equal(_) => {
                     assert!(
@@ -414,8 +413,8 @@ fn attack_round2(
         ORDER_REV[(idx_num + 1) % 4],
         round - if idx == StateType::A { 1 } else { 0 }
     );
-    println!("performing on {}:", cur_state);
-    println!("\tinit_v:\t{}", format_wu32(v));
+    // println!("performing on {}:", cur_state);
+    // println!("\tinit_v:\t{}", format_wu32(v));
     for cmd in cmds {
         let bit = cmd.bit;
         v = match cmd.typ {
@@ -431,8 +430,8 @@ fn attack_round2(
             CmdType::Unset => correct_bit_unset(v, bit),
             CmdType::Set => correct_bit_set(v, bit),
         };
-        cmd.debug(&cur_state, &prev_state, 2);
-        println!("\tcmd_v:\t{}", format_wu32(v));
+        // cmd.debug(&cur_state, &prev_state, 2);
+        // println!("\tcmd_v:\t{}", format_wu32(v));
     }
 
     let mut old_states = get_states_from(affecting_state.prev_n(3), 8, msg);
@@ -447,18 +446,18 @@ fn attack_round2(
         shift,
         v,
     );
-    println!(
-        "old_msg: {}, new_msg: {}",
-        format_wu32(old_msg),
-        format_wu32(msg[msg_idx])
-    );
+    // println!(
+    //     "old_msg: {}, new_msg: {}",
+    //     format_wu32(old_msg),
+    //     format_wu32(msg[msg_idx])
+    // );
 
     (*st).val = v;
 
     // multi-step correction
     get_state(&mut affecting_state, msg);
-    println!("affecting_state: {:?}", affecting_state);
-    println!("old_states: {:?}", old_states);
+    // println!("affecting_state: {:?}", affecting_state);
+    // println!("old_states: {:?}", old_states);
 
     // msg[msg_idx + 1] = inv_op(f, d0.val, new_a1.val, b0.val, c0.val, W(0), SHIFT1[1], d1.val);
     // msg[msg_idx + 2] = inv_op(f, c0.val, d1.val, new_a1.val, b0.val, W(0), SHIFT1[2], c1.val);
@@ -485,7 +484,7 @@ fn attack_round2(
         );
     }
     let new_states = get_states_from(affecting_state.prev_n(3), 8, msg);
-    println!("new_states: {:?}", new_states);
+    // println!("new_states: {:?}", new_states);
 }
 fn get_state(state: &mut State, msg: &[Wu32; 16]) {
     let states = get_states_from(state.clone(), 1, msg);
@@ -577,13 +576,13 @@ fn md4(msg: &[u8]) -> String {
         }
     }
     fn add_u8_arr(arr: &[u8], blocks: &mut Vec<Vec<Wu32>>) -> usize {
-        let mut block = [W(0); 16];
+        let mut block = vec![W(0); 16];
         if arr.len() < 64 {
             return 0;
         }
         let mut cur = 0;
         for i in (0..arr.len()).step_by(4) {
-            if i + 4 >= arr.len() {
+            if i + 4 > arr.len() {
                 break;
             }
             block[cur] = W(u32::from_le_bytes([
@@ -594,7 +593,7 @@ fn md4(msg: &[u8]) -> String {
             ]));
             cur += 1;
             if cur == 16 {
-                blocks.push(block.to_vec());
+                blocks.push(block.clone());
             }
         }
         cur
@@ -626,57 +625,33 @@ fn md4(msg: &[u8]) -> String {
         .collect();
     add_u8_arr(&padding_block, &mut blocks);
     assert!(padding_block.len() % 64 == 0);
-    blocks = padding_block
-        .chunks(64)
-        .map(|chunk| {
-            chunk
-                .chunks(4)
-                .map(|sub_chunk| {
-                    W(u32::from_le_bytes([
-                        sub_chunk[0],
-                        sub_chunk[1],
-                        sub_chunk[2],
-                        sub_chunk[3],
-                    ]))
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    print_blocks(&blocks);
+    // print_blocks(&blocks);
 
     let mut states = S0;
     for msg in blocks {
         let [mut a, mut b, mut c, mut d] = states;
-        println!("{:x}\n{:x}\n{:x}\n{:x}\n", a, b, c, d);
         for &i in &[0, 4, 8, 12] {
             a = op(f, a, b, c, d, msg[i], 3);
             d = op(f, d, a, b, c, msg[i + 1], 7);
             c = op(f, c, d, a, b, msg[i + 2], 11);
             b = op(f, b, c, d, a, msg[i + 3], 19);
         }
-        println!("{:x}\n{:x}\n{:x}\n{:x}\n", a, b, c, d);
         for &i in &[0, 1, 2, 3] {
             a = op(g, a, b, c, d, msg[i] + K1, 3);
             d = op(g, d, a, b, c, msg[i + 4] + K1, 5);
             c = op(g, c, d, a, b, msg[i + 8] + K1, 9);
             b = op(g, b, c, d, a, msg[i + 12] + K1, 13);
         }
-        println!("{:x}\n{:x}\n{:x}\n{:x}\n", a, b, c, d);
         for &i in &[0, 2, 1, 3] {
             a = op(h, a, b, c, d, msg[i] + K2, 3);
             d = op(h, d, a, b, c, msg[i + 8] + K2, 9);
             c = op(h, c, d, a, b, msg[i + 4] + K2, 11);
             b = op(h, b, c, d, a, msg[i + 12] + K2, 15);
         }
-        println!("{:x}\n{:x}\n{:x}\n{:x}\n", a, b, c, d);
         states[0] += a;
         states[1] += b;
         states[2] += c;
         states[3] += d;
-        println!(
-            "{:x}{:x}{:x}{:x}",
-            states[0], states[1], states[2], states[3]
-        )
     }
     states
         .iter()
@@ -695,21 +670,20 @@ fn create_colliding_msg(msg: [Wu32; 16]) -> ([Wu32; 16], [Wu32; 16]) {
     (msg, n_msg)
 }
 
-fn format_msg(msg: &[Wu32; 16]) -> String {
-    let mut res = "".to_string();
-    for m in msg {
-        res.push_str(&format!("{:x}", m));
-    }
-    res
+fn convert_msg(msg: [Wu32; 16]) -> Vec<u8> {
+    msg.iter()
+        .map(|v| v.0.to_le_bytes())
+        .collect::<Vec<_>>()
+        .concat()
+}
+
+fn format_msg(msg: [Wu32; 16]) -> String {
+    convert_msg(msg)
+        .iter()
+        .fold("".to_string(), |acc, v| format!("{acc}{v:0>2x}"))
 }
 
 fn attack() {
-    fn convert_msg(msg: [Wu32; 16]) -> Vec<u8> {
-        msg.iter()
-            .map(|v| v.0.to_le_bytes())
-            .collect::<Vec<_>>()
-            .concat()
-    }
     loop {
         let msg = generate_msg();
         // maybe this msg is not fully satisfy the conditions a1~d4, but the
@@ -718,8 +692,7 @@ fn attack() {
         let (msg, n_msg) = create_colliding_msg(msg);
         let (md4_1, md4_2) = (md4(&convert_msg(msg)), md4(&convert_msg(n_msg)));
         if md4_1 == md4_2 {
-            let (msg, n_msg) = (format_msg(&msg), format_msg(&n_msg));
-            println!("we found it!\nM1: {}\nM2: {}\nmd4: {}", msg, n_msg, md4_1);
+            let (msg, n_msg) = (format_msg(msg), format_msg(n_msg));
             break;
         }
     }
@@ -738,8 +711,8 @@ fn generate_msg() -> [Wu32; 16] {
             val: iv.clone(),
         }
     }
-    #[cfg(test)]
-    print_state(&state);
+    // #[cfg(test)]
+    // print_state(&state);
     for i in 0..16 {
         attack_round1(
             &mut state,
@@ -749,10 +722,10 @@ fn generate_msg() -> [Wu32; 16] {
             SHIFT1[i % 4],
             ROUND1_CMD[i],
         );
-        #[cfg(test)]
-        if i % 4 == 3 {
-            print_state(&state);
-        }
+        // #[cfg(test)]
+        // if i % 4 == 3 {
+        //     print_state(&state);
+        // }
     }
     let msg_idx_arr = [0, 4, 8, 12];
     let affecting_states = [
@@ -806,11 +779,23 @@ mod tests {
             "".as_bytes(),
             "The quick brown fox jumps over the lazy dog".as_bytes(),
             "BEES".as_bytes(),
+            &[0xaa],
+            &[0xaa, 0xbb],
+            &[
+                0x24, 0x40, 0x45, 0x10, 0x7e, 0x48, 0x3, 0xcb, 0x7e, 0xe5, 0x5d, 0xfa, 0x67, 0xa1,
+                0x27, 0x29, 0x16, 0x8a, 0x6c, 0x52, 0x5e, 0x5a, 0xe, 0x5d, 0x9e, 0x44, 0x54, 0xc5,
+                0x73, 0x62, 0x92, 0xf7, 0x65, 0x70, 0xb2, 0x47, 0x6a, 0x32, 0x34, 0xdc, 0xa2, 0x98,
+                0xd, 0x3a, 0x10, 0x99, 0x81, 0xb, 0x82, 0x50, 0x72, 0x9, 0xe6, 0x56, 0x51, 0x97,
+                0x24, 0x7e, 0xbd, 0x3, 0x4c, 0x24, 0xd5, 0x22,
+            ],
         ];
         let known_hashes = [
             "31d6cfe0d16ae931b73c59d7e0c089c0",
             "1bee69a46ba811185c194762abaeae90",
             "501af1ef4b68495b5b7e37b15b4cda68",
+            "f322852f43b3dd6c68b01de97bc547fd",
+            "176078c7efaebfdacd1f4112467874e1",
+            "a25f98cb8736de9f7c9641995982a44f"
         ];
         for (msg, expect) in messages.iter().zip(known_hashes.iter()) {
             let got = md4(msg);
