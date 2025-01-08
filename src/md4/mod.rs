@@ -1,6 +1,10 @@
 mod attack1;
 mod attack1_consts;
+mod state;
 use core::num::Wrapping as W;
+
+use attack1_consts::{ORDER, SHIFT1};
+use state::{State, StateType};
 type Wu32 = W<u32>;
 
 pub const S0: [Wu32; 4] = [
@@ -141,8 +145,78 @@ pub fn md4(msg: &[u8]) -> String {
         .iter()
         .fold(String::new(), |acc, v| format!("{acc}{v:x}"))
 }
+
+fn get_state(state: &mut State, msg: &[Wu32; 16]) {
+    let states = get_states_from(state.clone(), 1, msg);
+    state.val = states[0].val;
+}
+// NOTE: only work in first round
+fn get_states_from(mut state: State, mut n: usize, msg: &[Wu32; 16]) -> Vec<State> {
+    let mut states = [State::default(); 4];
+    for (i, iv) in S0.iter().enumerate() {
+        states[i] = State {
+            typ: i.into(),
+            num: 0,
+            val: iv.clone(),
+        }
+    }
+    let mut res = vec![];
+    while state.num == 0 && n > 0 {
+        res.push(states[state.typ as usize]);
+
+        state = state.next();
+        n -= 1;
+    }
+    if n == 0 {
+        return res;
+    }
+    assert!(state.num > 0 && n > 0);
+    let mut cur_state = State {
+        typ: StateType::A,
+        num: 1,
+        val: W(0),
+    };
+
+    let mut i = 0;
+    while cur_state < state {
+        let ind = ORDER[i % 4] as usize;
+        let s = op(
+            f,
+            states[ind].val,
+            states[(ind + 1) % 4].val,
+            states[(ind + 2) % 4].val,
+            states[(ind + 3) % 4].val,
+            msg[i],
+            SHIFT1[i % 4],
+        );
+        states[ind].val = s;
+        i = i + 1;
+        cur_state = cur_state.next();
+    }
+    while n > 0 {
+        let ind = ORDER[i % 4] as usize;
+        let s = op(
+            f,
+            states[ind].val,
+            states[(ind + 1) % 4].val,
+            states[(ind + 2) % 4].val,
+            states[(ind + 3) % 4].val,
+            msg[i],
+            SHIFT1[i % 4],
+        );
+        states[ind].val = s;
+        state.val = s;
+        res.push(state.clone());
+        i = i + 1;
+        state = state.next();
+        n -= 1;
+    }
+    res
+}
 #[cfg(test)]
 mod tests {
+    use state::State;
+
     use super::*;
     #[test]
     fn test_md4_impl() {
@@ -171,6 +245,67 @@ mod tests {
         for (msg, expect) in messages.iter().zip(known_hashes.iter()) {
             let got = md4(msg);
             assert_eq!(&got, expect);
+        }
+    }
+    #[test]
+    fn test_get_state() {
+        let states: [u32; 20] = [
+            0x67452301, 0x10325476, 0x98badcfe, 0xefcdab89, 0xffffffb7, 0x1f80, 0x44e430c4,
+            0x59dd534c, 0x420c7d2, 0x626141a0, 0x4104af5, 0xc742bff0, 0x4260f609, 0x5b3079d4,
+            0x3801a653, 0x2310d19, 0x691356ec, 0x950ef735, 0x8a67f1d9, 0x966b1a40,
+        ];
+        let msg = [
+            W(0xfffffff7),
+            W(0x0),
+            W(0x8fffffff),
+            W(0xff7fffff),
+            W(0xffbffc7f),
+            W(0x2fbf),
+            W(0xfffffd79),
+            W(0xfdfffffa),
+            W(0xa0bff),
+            W(0x4605f),
+            W(0xfff3bf1f),
+            W(0xffffeffe),
+            W(0xf1bfffff),
+            W(0xffe7ffff),
+            W(0xfffc487f),
+            W(0x80000e7f),
+        ];
+        for i in 0..=4 {
+            for t in ORDER {
+                let mut state = State {
+                    typ: t,
+                    num: i,
+                    val: W(0),
+                };
+                get_state(&mut state, &msg);
+                let expect = states[state.num as usize * 4 + ORDER[state.typ as usize] as usize];
+                assert_eq!(
+                    state.val.0, expect,
+                    "diff on i: {:?}, expect: 0x{:x}",
+                    state, expect
+                );
+            }
+        }
+        for i in 0..=3 {
+            for t in ORDER {
+                let mut state = State {
+                    typ: t,
+                    num: i,
+                    val: W(0),
+                };
+                let res = get_states_from(state, 4, &msg);
+                let start_ind = state.num as usize * 4 + ORDER[state.typ as usize] as usize;
+                let expects = &states[start_ind..start_ind + 4];
+                for (expect, got) in expects.iter().zip(res) {
+                    assert_eq!(
+                        got.val.0, *expect,
+                        "diff on i: {:?}, expect: 0x{:x}",
+                        got, expect
+                    );
+                }
+            }
         }
     }
 }

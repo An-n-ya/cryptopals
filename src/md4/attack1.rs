@@ -1,16 +1,16 @@
 #![allow(unused)]
-use std::num::Wrapping as W;
 
 use itertools::Itertools;
+use std::num::Wrapping as W;
 
 use crate::md4::{attack1_consts::ORDER_REV, g, K1};
 
 use super::{
     attack1_consts::{ORDER, ROUND1_CMD, ROUND2_CMD, SHIFT1, SHIFT2},
-    f, h, inv_op, md4, op, Wu32, K2, S0,
+    f, get_state, get_states_from, h, inv_op, md4, op,
+    state::{State, StateType},
+    Wu32, K2, S0,
 };
-
-// TODO: refactor
 
 #[derive(Debug)]
 pub enum CmdType {
@@ -33,140 +33,6 @@ impl Cmd {
             CmdType::Set => print!("{v}_{} = 1", bit),
         }
         println!();
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum StateType {
-    A,
-    B,
-    C,
-    D,
-}
-
-impl StateType {
-    pub fn prev(&self) -> StateType {
-        use StateType::*;
-        match self {
-            A => B,
-            B => C,
-            C => D,
-            D => A,
-        }
-    }
-    pub fn next(&self) -> StateType {
-        use StateType::*;
-        match self {
-            A => D,
-            B => A,
-            C => B,
-            D => C,
-        }
-    }
-}
-
-impl PartialOrd for StateType {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        let order = [0, 3, 2, 1];
-        order[*self as usize].partial_cmp(&order[*other as usize])
-    }
-}
-impl From<usize> for StateType {
-    fn from(value: usize) -> Self {
-        match value {
-            0 => StateType::A,
-            1 => StateType::B,
-            2 => StateType::C,
-            3 => StateType::D,
-            i => panic!("unexpected value {i}"),
-        }
-    }
-}
-impl Into<usize> for StateType {
-    fn into(self) -> usize {
-        match self {
-            StateType::A => 0,
-            StateType::B => 1,
-            StateType::C => 2,
-            StateType::D => 3,
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq)]
-struct State {
-    typ: StateType,
-    num: u8,
-    val: Wu32,
-}
-impl State {
-    pub fn prev_n(&self, mut n: usize) -> State {
-        let mut typ = self.typ.clone();
-        let mut num = self.num;
-        while n > 0 {
-            if typ == StateType::A {
-                assert!(n > 0, "A0 doesn't have previous state");
-                num -= 1;
-            }
-            typ = typ.prev();
-            n -= 1;
-        }
-        State {
-            typ,
-            num,
-            val: W(0),
-        }
-    }
-    pub fn next_n(&self, mut n: usize) -> State {
-        let mut typ = self.typ.clone();
-        let mut num = self.num;
-        while n > 0 {
-            if typ == StateType::B {
-                num += 1;
-            }
-            typ = typ.next();
-            n -= 1;
-        }
-        State {
-            typ,
-            num,
-            val: W(0),
-        }
-    }
-    pub fn prev(&self) -> State {
-        self.prev_n(1)
-    }
-    pub fn next(&self) -> State {
-        self.next_n(1)
-    }
-}
-impl core::fmt::Debug for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}{}: ", self.typ, self.num).unwrap();
-        write!(f, "{}", format_wu32(self.val)).unwrap();
-        Ok(())
-    }
-}
-fn format_wu32(v: Wu32) -> String {
-    format!("{:x}", v.0)
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.num == other.num {
-            self.typ.partial_cmp(&other.typ)
-        } else {
-            self.num.partial_cmp(&other.num)
-        }
-    }
-}
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            typ: StateType::A,
-            num: 0,
-            val: W(0),
-        }
     }
 }
 
@@ -356,6 +222,7 @@ fn attack_round1(
 
     (*st).val = v;
 }
+
 fn attack_round2(
     state: &mut [State; 4],
     idx: StateType,
@@ -429,74 +296,6 @@ fn attack_round2(
     }
     let new_states = get_states_from(affecting_state.prev_n(3), 8, msg);
 }
-fn get_state(state: &mut State, msg: &[Wu32; 16]) {
-    let states = get_states_from(state.clone(), 1, msg);
-    state.val = states[0].val;
-}
-// NOTE: only work in first round
-fn get_states_from(mut state: State, mut n: usize, msg: &[Wu32; 16]) -> Vec<State> {
-    let mut states = [State::default(); 4];
-    for (i, iv) in S0.iter().enumerate() {
-        states[i] = State {
-            typ: i.into(),
-            num: 0,
-            val: iv.clone(),
-        }
-    }
-    let mut res = vec![];
-    while state.num == 0 && n > 0 {
-        res.push(states[state.typ as usize]);
-
-        state = state.next();
-        n -= 1;
-    }
-    if n == 0 {
-        return res;
-    }
-    assert!(state.num > 0 && n > 0);
-    let mut cur_state = State {
-        typ: StateType::A,
-        num: 1,
-        val: W(0),
-    };
-
-    let order = [0, 3, 2, 1];
-    let mut i = 0;
-    while cur_state < state {
-        let ind = ORDER[i % 4] as usize;
-        let s = op(
-            f,
-            states[ind].val,
-            states[(ind + 1) % 4].val,
-            states[(ind + 2) % 4].val,
-            states[(ind + 3) % 4].val,
-            msg[i],
-            SHIFT1[i % 4],
-        );
-        states[ind].val = s;
-        i = i + 1;
-        cur_state = cur_state.next();
-    }
-    while n > 0 {
-        let ind = ORDER[i % 4] as usize;
-        let s = op(
-            f,
-            states[ind].val,
-            states[(ind + 1) % 4].val,
-            states[(ind + 2) % 4].val,
-            states[(ind + 3) % 4].val,
-            msg[i],
-            SHIFT1[i % 4],
-        );
-        states[ind].val = s;
-        state.val = s;
-        res.push(state.clone());
-        i = i + 1;
-        state = state.next();
-        n -= 1;
-    }
-    res
-}
 
 fn create_colliding_msg(msg: [Wu32; 16]) -> ([Wu32; 16], [Wu32; 16]) {
     let mut n_msg = msg.clone();
@@ -548,8 +347,6 @@ fn generate_msg() -> [Wu32; 16] {
             val: iv.clone(),
         }
     }
-    // #[cfg(test)]
-    // print_state(&state);
     for i in 0..16 {
         attack_round1(
             &mut state,
@@ -559,10 +356,6 @@ fn generate_msg() -> [Wu32; 16] {
             SHIFT1[i % 4],
             ROUND1_CMD[i],
         );
-        // #[cfg(test)]
-        // if i % 4 == 3 {
-        //     print_state(&state);
-        // }
     }
     let msg_idx_arr = [0, 4, 8, 12];
     let affecting_states = [
@@ -601,12 +394,6 @@ fn generate_msg() -> [Wu32; 16] {
     m
 }
 
-fn print_state(state: &[State; 4]) {
-    for o in ORDER {
-        println!("{:?}", state[o as usize]);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -621,67 +408,5 @@ mod tests {
     fn test_round1() {
         let msg = generate_msg();
         check(&msg);
-    }
-
-    #[test]
-    fn test_get_state() {
-        let states: [u32; 20] = [
-            0x67452301, 0x10325476, 0x98badcfe, 0xefcdab89, 0xffffffb7, 0x1f80, 0x44e430c4,
-            0x59dd534c, 0x420c7d2, 0x626141a0, 0x4104af5, 0xc742bff0, 0x4260f609, 0x5b3079d4,
-            0x3801a653, 0x2310d19, 0x691356ec, 0x950ef735, 0x8a67f1d9, 0x966b1a40,
-        ];
-        let msg = [
-            W(0xfffffff7),
-            W(0x0),
-            W(0x8fffffff),
-            W(0xff7fffff),
-            W(0xffbffc7f),
-            W(0x2fbf),
-            W(0xfffffd79),
-            W(0xfdfffffa),
-            W(0xa0bff),
-            W(0x4605f),
-            W(0xfff3bf1f),
-            W(0xffffeffe),
-            W(0xf1bfffff),
-            W(0xffe7ffff),
-            W(0xfffc487f),
-            W(0x80000e7f),
-        ];
-        for i in 0..=4 {
-            for t in ORDER {
-                let mut state = State {
-                    typ: t,
-                    num: i,
-                    val: W(0),
-                };
-                get_state(&mut state, &msg);
-                let expect = states[state.num as usize * 4 + ORDER[state.typ as usize] as usize];
-                assert_eq!(
-                    state.val.0, expect,
-                    "diff on i: {:?}, expect: 0x{:x}",
-                    state, expect
-                );
-            }
-        }
-        for i in 0..=3 {
-            for t in ORDER {
-                let mut state = State {
-                    typ: t,
-                    num: i,
-                    val: W(0),
-                };
-                let res = get_states_from(state, 4, &msg);
-                let start_ind = state.num as usize * 4 + ORDER[state.typ as usize] as usize;
-                let expects = &states[start_ind..start_ind + 4];
-                for (expect, got) in expects.iter().zip(res) {
-                    assert_eq!(
-                        got.val.0, *expect,
-                        "diff on i: {:?}, expect: 0x{:x}",
-                        got, expect
-                    );
-                }
-            }
-        }
     }
 }

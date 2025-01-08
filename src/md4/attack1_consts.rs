@@ -1,4 +1,7 @@
-use super::attack1::{Cmd, CmdType, StateType};
+use super::{
+    attack1::{Cmd, CmdType},
+    state::StateType,
+};
 
 pub const SHIFT1: [u32; 4] = [3, 7, 11, 19];
 pub const SHIFT2: [u32; 4] = [3, 5, 9, 13];
